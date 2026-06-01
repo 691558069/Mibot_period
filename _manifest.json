@@ -1,0 +1,39 @@
+{
+  "manifest_version": 2,
+  "id": "com.sisyphbaous.period",
+  "version": "1.0.0",
+  "name": "棉絮与铁",
+  "description": "为女性人格 Bot 提供生理周期模拟 + 情绪管理系统，低侵入式提示词设计。移植自 AstrBot 插件 astrbot_plugin_period。",
+  "author": {
+    "name": "C₂₂H₂₅NO₆",
+    "url": "https://github.com/Sisyphbaous-DT-Project/astrbot_plugin_period"
+  },
+  "license": "MIT",
+  "urls": {
+    "repository": "https://github.com/Sisyphbaous-DT-Project/astrbot_plugin_period"
+  },
+  "host_application": {
+    "min_version": "1.0.0",
+    "max_version": "1.99.99"
+  },
+  "sdk": {
+    "min_version": "2.5.1",
+    "max_version": "2.99.99"
+  },
+  "dependencies": [
+    {
+      "name": "fastapi",
+      "version": ">=0.100.0",
+      "type": "python_package"
+    },
+    {
+      "name": "uvicorn",
+      "version": ">=0.20.0",
+      "type": "python_package"
+    }
+  ],
+  "capabilities": ["send_message"],
+  "i18n": {
+    "default_locale": "zh-CN"
+  }
+}

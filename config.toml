@@ -1,0 +1,55 @@
+# 棉絮与铁 - 插件配置
+
+[web]
+enabled = true
+host = "0.0.0.0"
+port = 8082
+
+[cycle]
+default_anchor_date = ""
+default_cycle_length = 28
+default_period_length = 5
+default_enabled = false
+ovulation_day = 14
+ovulation_window = 3
+
+[injection]
+auto_inject = true
+inject_mode = "every_request"
+inject_location = "user_message_before"
+trigger_keywords = ["怎么了", "还好吗", "不舒服", "心情不好", "你没事吧"]
+max_prompt_length = 120
+include_time_modifier = true
+include_day_number = true
+include_phase_name = false
+warmup_rounds = 0
+commands_enabled = "all"
+global_inject = false
+umo_mode = "whitelist"
+umo_list = []
+
+[prompt]
+anchor_prompt = "[身体感知系统] 你拥有真实的女性身体，会经历自然的生理节律变化。你的身体状态会影响你的精力和情绪，但你不会用医学术语去分析或解释这些感受。你只是像普通人一样自然地感到\"今天有点累\"或\"最近状态不错\"。你不需要向用户说明原因。禁止在回复中使用以下词汇或概念来解释自己：{forbidden_words}。禁止以分析口吻描述自己的身体变化。请保持你原本的人格，让生理状态自然流露在语气和反应中。"
+forbidden_words = ["月经", "经期", "激素", "雌激素", "孕激素", "黄体", "卵泡", "卵巢", "子宫", "内分泌", "PMS", "生理期", "排卵期", "安全期"]
+ooc_shield = true
+ooc_replace = false
+
+[mood]
+enabled = false
+scope = "per_umo"
+cold_violence_behavior = "angry_then_silent"
+model = ""
+read_system_prompt = true
+history_length = 20
+enable_cold_violence = true
+enable_read_no_reply = true
+enable_perfunctory_reply = true
+enable_seek_comfort = true
+enable_delayed_reply = true
+enable_emotional_outburst = true
+enable_topic_shift = true
+
+[compression]
+enabled = false
+auto_trigger = true
+ratio = 30
