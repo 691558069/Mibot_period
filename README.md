@@ -1,4 +1,4 @@
-# 棉絮与铁（Period）—— MaiBot 生理周期模拟 + 情绪管理插件（移植版）
+# 棉花与铁（Period）—— MaiBot 生理周期模拟 + 情绪管理插件（移植版）
 
 > 本插件移植自 [astrbot_plugin_period](https://github.com/Sisyphbaous-DT-Project/astrbot_plugin_period)，原作者 C₂₂H₂₅NO₆。
 
