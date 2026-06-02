@@ -1,7 +1,11 @@
 # 棉絮与铁 - 插件配置
 
-[web]
+[plugin]
 enabled = true
+config_version = "1.0.0"
+
+[web]
+enabled = false
 host = "0.0.0.0"
 port = 8082
 

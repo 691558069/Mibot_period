@@ -1,4 +1,4 @@
-# 棉花与铁（Period）—— MaiBot 生理周期模拟 + 情绪管理插件（移植版）
+# 棉絮与铁（Period）—— MaiBot 生理周期模拟 + 情绪管理插件（移植版）
 
 > 本插件移植自 [astrbot_plugin_period](https://github.com/Sisyphbaous-DT-Project/astrbot_plugin_period)，原作者 C₂₂H₂₅NO₆。
 
@@ -172,9 +172,7 @@ User 消息 →
 | Hook | 层 | 作用 |
 |------|-----|------|
 | `maisaka.planner.before_request` | Planner | 注入生理状态 + no_action 许可 |
-| `maisaka.replyer.before_request` | Replyer | 注入行为倾向（extra_prompt） |
-| `maisaka.replyer.before_model_request` | Replyer | 注入身体感受细节到最终消息 |
-| `send_service.before_send` | 发送安全网 | 拦截空消息 |
+| `maisaka.replyer.before_request` | Replyer | 注入身体感受 + 行为倾向（extra_prompt） |
 
 ## 与原版的差异
 

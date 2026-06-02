@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import re
 from pathlib import Path
 from typing import Any, ClassVar, Iterable
 
@@ -25,51 +26,82 @@ from .core.engine import CycleEngine
 from .core.store import CycleStore
 from .core.prompt import PromptBuilder
 from .core.prompt_compressor import PromptCompressor
-from .core.mood_store import MoodStore
+
+# 用于替换已有周期状态行的正则（避免 system message 累积增长）
+_PERIOD_LINE_RE = re.compile(r'\n\n\[身体状态\][^\n]*')
 
 
 # ======================================================================
 #  配置模型
 # ======================================================================
 
+class PluginSection(PluginConfigBase):
+    """插件基础配置。"""
+    __ui_label__ = "插件"
+    __ui_order__ = 0
+
+    enabled: bool = Field(default=True, description="是否启用插件", json_schema_extra={"label": "启用插件"})
+    config_version: str = Field(default="1.0.0", description="配置版本", json_schema_extra={"label": "配置版本"})
+
+
 class WebSection(PluginConfigBase):
     """Web 面板配置。"""
     __ui_label__ = "Web 面板"
 
-    enabled: bool = Field(default=True, description="是否启用 Web 管理面板")
-    host: str = Field(default="0.0.0.0", description="监听地址")
-    port: int = Field(default=8082, description="监听端口")
+    enabled: bool = Field(default=False, description="是否启用 Web 管理面板", json_schema_extra={"label": "启用面板"})
+    host: str = Field(default="0.0.0.0", description="监听地址", json_schema_extra={"label": "监听地址"})
+    port: int = Field(default=8082, description="监听端口", json_schema_extra={"label": "监听端口"})
 
 
 class CycleSection(PluginConfigBase):
     """周期计算参数。"""
     __ui_label__ = "周期参数"
 
-    default_anchor_date: str = Field(default="", description="全局默认经期首日 (YYYY-MM-DD)")
-    default_cycle_length: int = Field(default=28, description="全局默认周期长度（天）")
-    default_period_length: int = Field(default=5, description="全局默认经期长度（天）")
-    default_enabled: bool = Field(default=False, description="对未设置会话自动启用")
-    ovulation_day: int = Field(default=14, description="排卵日（周期第几天）")
-    ovulation_window: int = Field(default=3, description="排卵期窗口（天）")
+    default_anchor_date: str = Field(default="", description="全局默认经期首日 (YYYY-MM-DD)", json_schema_extra={"label": "默认经期首日"})
+    default_cycle_length: int = Field(default=28, description="全局默认周期长度（天）", json_schema_extra={"label": "默认周期长度"})
+    default_period_length: int = Field(default=5, description="全局默认经期长度（天）", json_schema_extra={"label": "默认经期长度"})
+    default_enabled: bool = Field(default=False, description="对未设置会话自动启用", json_schema_extra={"label": "自动启用"})
+    ovulation_day: int = Field(default=14, description="排卵日（周期第几天）", json_schema_extra={"label": "排卵日"})
+    ovulation_window: int = Field(default=3, description="排卵期窗口（天）", json_schema_extra={"label": "排卵窗口"})
 
 
 class InjectionSection(PluginConfigBase):
     """注入策略配置。"""
     __ui_label__ = "注入策略"
 
-    auto_inject: bool = Field(default=True, description="生理周期模拟总开关")
-    inject_mode: str = Field(default="every_request", description="注入频率: every_request / interval_3 / on_trigger / only_status")
-    inject_location: str = Field(default="user_message_before", description="注入位置: user_message_before / system_prompt_append")
-    trigger_keywords: list = Field(default_factory=lambda: ["怎么了", "还好吗", "不舒服", "心情不好", "你没事吧"], description="触发关键词（on_trigger 模式）")
-    max_prompt_length: int = Field(default=120, description="动态提示词最大字数")
-    include_time_modifier: bool = Field(default=True, description="叠加时段微调")
-    include_day_number: bool = Field(default=True, description="显示第几天")
-    include_phase_name: bool = Field(default=False, description="显示阶段名称")
-    warmup_rounds: int = Field(default=0, description="冷启动轮数")
-    commands_enabled: str = Field(default="all", description="指令权限: all / readonly / none")
-    global_inject: bool = Field(default=False, description="全局注入模式")
-    umo_mode: str = Field(default="whitelist", description="会话范围: whitelist / blacklist")
-    umo_list: list = Field(default_factory=list, description="会话 ID 列表")
+    auto_inject: bool = Field(default=True, description="生理周期模拟总开关", json_schema_extra={"label": "模拟总开关"})
+    inject_mode: str = Field(
+        default="every_request",
+        description="注入频率: every_request / interval_3 / on_trigger / only_status",
+        json_schema_extra={"label": "注入频率模式"},
+    )
+    inject_location: str = Field(
+        default="user_message_before",
+        description="注入位置: user_message_before / system_prompt_append",
+        json_schema_extra={"label": "注入位置"},
+    )
+    trigger_keywords: list = Field(
+        default_factory=lambda: ["怎么了", "还好吗", "不舒服", "心情不好", "你没事吧"],
+        description="触发关键词（on_trigger 模式）",
+        json_schema_extra={"label": "触发关键词"},
+    )
+    max_prompt_length: int = Field(default=120, description="动态提示词最大字数", json_schema_extra={"label": "动态提示词最大字数"})
+    include_time_modifier: bool = Field(default=True, description="叠加时段微调", json_schema_extra={"label": "时段微调"})
+    include_day_number: bool = Field(default=True, description="显示第几天", json_schema_extra={"label": "显示第几天"})
+    include_phase_name: bool = Field(default=False, description="显示阶段名称", json_schema_extra={"label": "显示阶段名"})
+    warmup_rounds: int = Field(default=0, description="冷启动轮数", json_schema_extra={"label": "冷启动轮数"})
+    commands_enabled: str = Field(
+        default="all",
+        description="指令权限: all / readonly / none",
+        json_schema_extra={"label": "指令权限"},
+    )
+    global_inject: bool = Field(default=False, description="全局注入模式", json_schema_extra={"label": "全局注入"})
+    umo_mode: str = Field(
+        default="whitelist",
+        description="会话范围: whitelist / blacklist",
+        json_schema_extra={"label": "会话范围模式"},
+    )
+    umo_list: list = Field(default_factory=list, description="会话 ID 列表", json_schema_extra={"label": "会话 ID 列表"})
 
 
 class PromptSection(PluginConfigBase):
@@ -79,63 +111,70 @@ class PromptSection(PluginConfigBase):
     anchor_prompt: str = Field(
         default="[身体感知系统] 你拥有真实的女性身体，会经历自然的生理节律变化。你的身体状态会影响你的精力和情绪，但你不会用医学术语去分析或解释这些感受。你只是像普通人一样自然地感到\"今天有点累\"或\"最近状态不错\"。你不需要向用户说明原因。禁止在回复中使用以下词汇或概念来解释自己：{forbidden_words}。禁止以分析口吻描述自己的身体变化。请保持你原本的人格，让生理状态自然流露在语气和反应中。",
         description="基础人设锚点提示词",
+        json_schema_extra={"label": "锚点提示词"},
     )
     forbidden_words: list = Field(
         default_factory=lambda: ["月经", "经期", "激素", "雌激素", "孕激素", "黄体", "卵泡", "卵巢", "子宫", "内分泌", "PMS", "生理期", "排卵期", "安全期"],
         description="禁止 AI 说出的词汇",
+        json_schema_extra={"label": "禁用词列表"},
     )
-    ooc_shield: bool = Field(default=True, description="OOC 出戏检测")
-    ooc_replace: bool = Field(default=False, description="自动替换禁用词为星号")
+    ooc_shield: bool = Field(default=True, description="OOC 出戏检测", json_schema_extra={"label": "OOC 检测"})
+    ooc_replace: bool = Field(default=False, description="自动替换禁用词为星号", json_schema_extra={"label": "自动替换禁用词"})
 
 
 class PhaseConfig(PluginConfigBase):
     """单个阶段的提示词配置。"""
-    prompt: str = Field(default="", description="主体感受")
-    time_morning: str = Field(default="", description="早晨微调")
-    time_afternoon: str = Field(default="", description="午后微调")
-    time_night: str = Field(default="", description="深夜微调")
+    prompt: str = Field(default="", description="主体感受", json_schema_extra={"label": "主体感受"})
+    time_morning: str = Field(default="", description="早晨微调", json_schema_extra={"label": "早晨微调"})
+    time_afternoon: str = Field(default="", description="午后微调", json_schema_extra={"label": "午后微调"})
+    time_night: str = Field(default="", description="深夜微调", json_schema_extra={"label": "深夜微调"})
 
 
 class PhasesSection(PluginConfigBase):
     """四阶段提示词配置。"""
     __ui_label__ = "阶段提示词"
 
-    menstrual: PhaseConfig = Field(default_factory=PhaseConfig)
-    follicular: PhaseConfig = Field(default_factory=PhaseConfig)
-    ovulatory: PhaseConfig = Field(default_factory=PhaseConfig)
-    luteal: PhaseConfig = Field(default_factory=PhaseConfig)
+    menstrual: PhaseConfig = Field(default_factory=PhaseConfig, json_schema_extra={"label": "月经期"})
+    follicular: PhaseConfig = Field(default_factory=PhaseConfig, json_schema_extra={"label": "卵泡期"})
+    ovulatory: PhaseConfig = Field(default_factory=PhaseConfig, json_schema_extra={"label": "排卵期"})
+    luteal: PhaseConfig = Field(default_factory=PhaseConfig, json_schema_extra={"label": "黄体期"})
 
 
 class MoodSection(PluginConfigBase):
     """情绪系统配置。"""
     __ui_label__ = "情绪系统"
 
-    enabled: bool = Field(default=False, description="情绪管理系统总开关")
-    scope: str = Field(default="per_umo", description="情绪作用范围: per_umo / global")
-    cold_violence_behavior: str = Field(default="angry_then_silent", description="冷暴力表现: silent / angry_then_silent / outburst_then_silent")
-    model: str = Field(default="", description="情绪检测模型（留空用主模型）")
-    read_system_prompt: bool = Field(default=True, description="让检测模型了解人设")
-    history_length: int = Field(default=20, description="情绪历史保留条数")
-    enable_cold_violence: bool = Field(default=True, description="允许冷暴力")
-    enable_read_no_reply: bool = Field(default=True, description="允许已读不回")
-    enable_perfunctory_reply: bool = Field(default=True, description="允许敷衍回复")
-    enable_seek_comfort: bool = Field(default=True, description="允许求安慰")
-    enable_delayed_reply: bool = Field(default=True, description="允许延迟回复")
-    enable_emotional_outburst: bool = Field(default=True, description="允许情绪爆发")
-    enable_topic_shift: bool = Field(default=True, description="允许转移话题")
+    enabled: bool = Field(default=False, description="情绪管理系统总开关", json_schema_extra={"label": "情绪系统开关"})
+    scope: str = Field(default="per_umo", description="情绪作用范围: per_umo / global", json_schema_extra={"label": "作用范围"})
+    cold_violence_behavior: str = Field(
+        default="angry_then_silent",
+        description="冷暴力表现: silent / angry_then_silent / outburst_then_silent",
+        json_schema_extra={"label": "冷暴力表现"},
+    )
+    model: str = Field(default="", description="情绪检测模型（留空用主模型）", json_schema_extra={"label": "检测模型"})
+    read_system_prompt: bool = Field(default=True, description="让检测模型了解人设", json_schema_extra={"label": "读取人设"})
+    history_length: int = Field(default=20, description="情绪历史保留条数", json_schema_extra={"label": "历史保留条数"})
+    enable_cold_violence: bool = Field(default=True, description="允许冷暴力", json_schema_extra={"label": "允许冷暴力"})
+    enable_read_no_reply: bool = Field(default=True, description="允许已读不回", json_schema_extra={"label": "允许已读不回"})
+    enable_perfunctory_reply: bool = Field(default=True, description="允许敷衍回复", json_schema_extra={"label": "允许敷衍回复"})
+    enable_seek_comfort: bool = Field(default=True, description="允许求安慰", json_schema_extra={"label": "允许求安慰"})
+    enable_delayed_reply: bool = Field(default=True, description="允许延迟回复", json_schema_extra={"label": "允许延迟回复"})
+    enable_emotional_outburst: bool = Field(default=True, description="允许情绪爆发", json_schema_extra={"label": "允许情绪爆发"})
+    enable_topic_shift: bool = Field(default=True, description="允许转移话题", json_schema_extra={"label": "允许转移话题"})
 
 
 class CompressionSection(PluginConfigBase):
     """提示词压缩配置。"""
     __ui_label__ = "提示词压缩"
 
-    enabled: bool = Field(default=False, description="启用提示词压缩")
-    auto_trigger: bool = Field(default=True, description="启动时自动压缩")
-    ratio: int = Field(default=30, description="压缩目标（原文百分之几）")
+    enabled: bool = Field(default=False, description="启用提示词压缩", json_schema_extra={"label": "启用压缩"})
+    auto_trigger: bool = Field(default=True, description="启动时自动压缩", json_schema_extra={"label": "自动触发"})
+    ratio: int = Field(default=30, description="压缩目标（原文百分之几）", json_schema_extra={"label": "压缩目标比例"})
 
 
 class PeriodConfig(PluginConfigBase):
     """插件完整配置。"""
+    plugin: PluginSection = Field(default_factory=PluginSection)
     web: WebSection = Field(default_factory=WebSection)
     cycle: CycleSection = Field(default_factory=CycleSection)
     injection: InjectionSection = Field(default_factory=InjectionSection)
@@ -194,7 +233,6 @@ class PeriodPlugin(MaiBotPlugin):
 
         self.engine = CycleEngine()
         self.store = CycleStore(data_dir)
-        self.mood_store = MoodStore(data_dir)
 
         # 构建运行时配置字典（兼容 core 模块的 dict 接口）
         self._runtime_config = self._build_runtime_config()
@@ -235,7 +273,8 @@ class PeriodPlugin(MaiBotPlugin):
         self.ctx.logger.info("[Period] 插件加载完成")
 
     async def on_unload(self) -> None:
-        if self._web_server:
+        server = getattr(self, "_web_server", None)
+        if server:
             try:
                 self._web_server.stop()
             except Exception:
@@ -482,154 +521,88 @@ class PeriodPlugin(MaiBotPlugin):
         messages = kwargs.get("messages", [])
         for msg in messages:
             if msg.get("role") == "system":
-                msg["content"] = msg.get("content", "") + "\n\n" + period_line
+                content = msg.get("content", "")
+                # 替换旧的状态行（若有）再追加新的，避免 system message 逐日积累
+                content = _PERIOD_LINE_RE.sub('', content)
+                msg["content"] = content + "\n\n" + period_line
                 break
 
         return {"action": "continue", "modified_kwargs": kwargs}
 
     # ==================================================================
-    #  Hook: 注入行为倾向到 Replyer（extra_prompt）
+    #  Hook: Replyer 统一注入（extra_prompt + 身体状态 + 行为倾向）
     # ==================================================================
 
     @HookHandler(
         "maisaka.replyer.before_request",
-        name="period_replyer_mood",
-        description="注入行为倾向提示到 replyer extra_prompt",
-        mode=HookMode.BLOCKING,
-        order=HookOrder.NORMAL,
-    )
-    async def inject_replyer_mood(self, **kwargs):
-        if not self.config.mood.enabled:
-            return {"action": "continue", "modified_kwargs": kwargs}
-
-        extra = self._build_replyer_extra_prompt()
-        if extra:
-            kwargs["extra_prompt"] = (kwargs.get("extra_prompt") or "") + extra
-
-        return {"action": "continue", "modified_kwargs": kwargs}
-
-    # ==================================================================
-    #  Hook: 注入身体状态到 LLM 请求（Replyer 消息层）
-    # ==================================================================
-
-    @HookHandler(
-        "maisaka.replyer.before_model_request",
         name="period_replyer_injector",
-        description="注入身体状态细节到 replyer 消息",
+        description="注入身体状态 + 行为倾向到 replyer extra_prompt",
         mode=HookMode.BLOCKING,
         order=HookOrder.EARLY,
     )
-    async def inject_period_state(self, **kwargs):
-        if not self.config.injection.auto_inject:
-            return {"action": "continue", "modified_kwargs": kwargs}
+    async def inject_replyer(self, **kwargs):
+        extra_parts = []
 
-        stream_id = kwargs.get("stream_id", "")
-        umo = stream_id
+        # 身体状态注入
+        if self.config.injection.auto_inject:
+            stream_id = kwargs.get("stream_id", "")
+            do_inject = True
 
-        # UMO 列表过滤
-        if not self.config.injection.global_inject:
-            umo_list = self.config.injection.umo_list
-            umo_mode = self.config.injection.umo_mode
-            if umo_mode == "whitelist" and umo not in umo_list:
-                return {"action": "continue", "modified_kwargs": kwargs}
-            if umo_mode == "blacklist" and umo in umo_list:
-                return {"action": "continue", "modified_kwargs": kwargs}
+            # UMO 过滤（仅非全局模式）
+            if not self.config.injection.global_inject:
+                umo_list = self.config.injection.umo_list
+                umo_mode = self.config.injection.umo_mode
+                if umo_mode == "whitelist" and stream_id not in umo_list:
+                    do_inject = False
+                elif umo_mode == "blacklist" and stream_id in umo_list:
+                    do_inject = False
 
-        cfg = await self._get_session_config(umo)
-        if not cfg or not cfg.get("enabled", True) or "anchor_date" not in cfg:
-            return {"action": "continue", "modified_kwargs": kwargs}
+            if do_inject:
+                cfg = await self._get_session_config(stream_id)
+                if cfg and cfg.get("enabled", True) and "anchor_date" in cfg:
+                    # 冷启动
+                    warmup = self.config.injection.warmup_rounds
+                    if warmup > 0:
+                        count = self._warmup_counters.get(stream_id, 0) + 1
+                        self._warmup_counters[stream_id] = count
+                        if count <= warmup:
+                            do_inject = False
 
-        # 冷启动检查
-        warmup = self.config.injection.warmup_rounds
-        if warmup > 0:
-            count = self._warmup_counters.get(umo, 0) + 1
-            self._warmup_counters[umo] = count
-            if count <= warmup:
-                return {"action": "continue", "modified_kwargs": kwargs}
+                    # 频率
+                    if do_inject:
+                        mode = self.config.injection.inject_mode
+                        if mode == "only_status":
+                            do_inject = False
+                        elif mode == "interval_3":
+                            count = self._inject_counters.get(stream_id, 0) + 1
+                            self._inject_counters[stream_id] = count
+                            if count % 3 != 1:
+                                do_inject = False
+                        elif mode == "on_trigger":
+                            do_inject = False
 
-        # 注入频率检查
-        mode = self.config.injection.inject_mode
-        if mode == "only_status":
-            return {"action": "continue", "modified_kwargs": kwargs}
-        elif mode == "interval_3":
-            count = self._inject_counters.get(umo, 0) + 1
-            self._inject_counters[umo] = count
-            if count % 3 != 1:
-                return {"action": "continue", "modified_kwargs": kwargs}
-        elif mode == "on_trigger":
-            user_msg = ""
-            for msg in reversed(kwargs.get("messages", [])):
-                if msg.get("role") == "user":
-                    user_msg = msg.get("content", "")
-                    break
-            keywords = self.config.injection.trigger_keywords
-            if not any(kw in user_msg for kw in keywords):
-                return {"action": "continue", "modified_kwargs": kwargs}
+                    if do_inject:
+                        info = self.engine.get_phase(
+                            cfg["anchor_date"], cfg.get("cycle_length", 28),
+                            cfg.get("period_length", 5), cfg.get("ovulation_day", 14),
+                            cfg.get("ovulation_window", 3), cfg.get("advance_days", 0),
+                        )
+                        hour = datetime.datetime.now().hour
+                        anchor = self.prompt_builder.get_anchor()
+                        dynamic = self.prompt_builder.build_dynamic(info.phase, info.day, hour)
+                        extra_parts.append(anchor)
+                        extra_parts.append(dynamic)
 
-        # 计算周期阶段
-        info = self.engine.get_phase(
-            cfg["anchor_date"], cfg.get("cycle_length", 28),
-            cfg.get("period_length", 5), cfg.get("ovulation_day", 14),
-            cfg.get("ovulation_window", 3), cfg.get("advance_days", 0),
-        )
+        # 行为倾向注入
+        if self.config.mood.enabled:
+            mood_hint = self._build_replyer_extra_prompt()
+            if mood_hint:
+                extra_parts.append(mood_hint)
 
-        messages = kwargs.get("messages", [])
-        hour = datetime.datetime.now().hour
+        if extra_parts:
+            existing = kwargs.get("extra_prompt") or ""
+            kwargs["extra_prompt"] = existing + "\n\n" + "\n\n".join(extra_parts)
 
-        # 注入锚点到 system 消息
-        anchor = self.prompt_builder.get_anchor()
-        system_found = False
-        for msg in messages:
-            if msg.get("role") == "system":
-                msg["content"] = msg.get("content", "") + "\n\n" + anchor
-                system_found = True
-                break
-        if not system_found:
-            messages.insert(0, {"role": "system", "content": anchor})
-
-        # 注入动态状态
-        location = self.config.injection.inject_location
-        dynamic = self.prompt_builder.build_dynamic(info.phase, info.day, hour)
-
-        if location == "system_prompt_append":
-            for msg in messages:
-                if msg.get("role") == "system":
-                    msg["content"] += "\n\n" + dynamic
-                    break
-        else:
-            # 默认 user_message_before
-            for i in range(len(messages) - 1, -1, -1):
-                if messages[i].get("role") == "user":
-                    original = messages[i].get("content", "")
-                    messages[i]["content"] = dynamic + "\n\n" + original
-                    break
-
-        kwargs["messages"] = messages
-
-        return {"action": "continue", "modified_kwargs": kwargs}
-
-    # ==================================================================
-    #  Hook: 安全网 — 拦截空消息
-    # ==================================================================
-
-    @HookHandler(
-        "send_service.before_send",
-        name="period_block_empty",
-        description="拦截空消息发送",
-        mode=HookMode.BLOCKING,
-        order=HookOrder.EARLY,
-    )
-    async def block_empty_send(self, **kwargs):
-        message = kwargs.get("message", {})
-        if isinstance(message, dict):
-            content = message.get("content", "")
-        elif hasattr(message, "content"):
-            content = message.content
-        else:
-            return {"action": "continue", "modified_kwargs": kwargs}
-
-        if not content or not content.strip():
-            return {"action": "abort"}
         return {"action": "continue", "modified_kwargs": kwargs}
 
     # ==================================================================
